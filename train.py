@@ -14,7 +14,6 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import resnet18
 from fire import Fire
 
-num_classes = 2
 batch_size = 24
 num_workers = 2
 
@@ -102,6 +101,7 @@ def train(scheme: str, epochs: int = 10):
     print(data.classes)
 
     # %%
+    num_classes = len(data.classes)
     model = resnet18(pretrained = True)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     model = model.to(device)

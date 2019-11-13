@@ -14,7 +14,7 @@ from torchvision.models import resnet18
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 batch_size = 80
-num_classes = 2
+# num_classes = 2
 num_workers = 2
 
 
@@ -54,11 +54,13 @@ def load_model(checkpoint):
     if not checkpoint.endswith('.tar'):
         checkpoint += '.tar'
 
+    cp = torch.load(checkpoint)
+    num_classes = len(cp['classes'])
+
     model = resnet18(pretrained = True)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     model = model.to(device)
 
-    cp = torch.load(checkpoint)
     model.load_state_dict(cp['model'])
     classes = cp.get('classes', None) or [str(i) for i in range(num_classes)]
 
