@@ -10,8 +10,7 @@ from fire import Fire
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from torchvision.models import resnet18
-from tqdm import tqdm
+from torchvision.models import resnet50
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # batch_size = 80
@@ -51,22 +50,22 @@ class ImageFolder(Dataset):
 
 
 def load_model(checkpoint):
-    if not checkpoint.endswith('.tar'):
-        checkpoint += '.tar'
+    if not checkpoint.endswith('.pth'):
+        checkpoint += '.pth'
 
     cp = torch.load(checkpoint)
-    num_classes = len(cp['classes'])
+    classes = ['drawings', 'hentai', 'neutral', 'porn', 'sexy']
 
-    model = resnet18(pretrained = True)
-    # model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model = resnet50(pretrained = False)
     model.fc = nn.Sequential(
-        nn.Dropout(0.3),
-        nn.Linear(model.fc.in_features, num_classes),
+        nn.Linear(2048, 512),
+        nn.ReLU(),
+        nn.Dropout(0.2),
+        nn.Linear(512, 10),
+        nn.LogSoftmax(dim = 1),
     )
+    model.load_state_dict(cp)
     model = model.to(device)
-
-    model.load_state_dict(cp['model'])
-    classes = cp.get('classes', None) or [str(i) for i in range(num_classes)]
 
     return model, classes
 
@@ -75,7 +74,7 @@ def predict(model, dataloader) -> pd.DataFrame:
     model.eval()
 
     files, preds = [], []
-    for x, fn in tqdm(dataloader):
+    for x, fn in dataloader:
         x = x.to(device)
         output = model(x)
         pred = torch.argmax(output, 1)
@@ -126,11 +125,15 @@ def predict_dir(
         clean_images(root)
 
     if target is None:
-        target = root
+        r = Path(root)
+        sfx = '.1'
+        if r.suffix:
+            sfx = r.suffix
+            sfx = sfx[:-1] + chr(ord(sfx[-1:]) + 1)
+        target = r.with_suffix(sfx)
 
     # model, classes = load_model('checkpoint.tar')
     data = ImageFolder(root)
-    print(f'{root} has {len(data)} images')
     if len(data) == 0:
         return
 
@@ -142,10 +145,10 @@ def predict_dir(
     )
     with torch.no_grad():
         result = predict(model, dataloader)
-        result.to_csv(Path(root).name + ".csv", index = False)
+    result.to_csv(Path(root).name + ".csv", index = False)
 
     for x in classes:
-        Path(target, x).mkdir(0o755, parents=True, exist_ok = True)
+        Path(target, x).mkdir(0o755, True, True)
 
     for _, (fn, label) in result.iterrows():
         print(fn, classes[label])
@@ -161,10 +164,16 @@ def predict_dirs(
         num_workers: int = 2,
         batch_size: int = 100,
 ):
-    assert scheme is not None
     model, classes = load_model(scheme)
 
-    predict_dir(model, classes, root, target, num_workers, batch_size, clean)
+    has_processed = False
+    for subd in Path(root).iterdir():
+        if subd.is_dir():
+            has_processed = True
+            predict_dir(model, classes, subd, target, num_workers, batch_size, clean)
+
+    if not has_processed:
+        predict_dir(model, classes, root, target, num_workers, batch_size, clean)
 
 
 # %%

@@ -7,18 +7,12 @@ from time import time
 import torch
 import torch.nn as nn
 
-from torch.optim import SGD, lr_scheduler
+from torch.optim import SGD, lr_scheduler, Adam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torchvision.models import resnet18
 from fire import Fire
-
-batch_size = 24
-num_workers = 2
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 def train_model(
         model,
@@ -29,6 +23,7 @@ def train_model(
         epochs,
         checkpoint,
 ):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     best_model_weights = deepcopy(model.state_dict())
     best_loss = math.inf
     best_acc = 0.
@@ -57,6 +52,7 @@ def train_model(
             optimizer.step()
             running_loss += loss.item() * x.size(0)
             running_acc += torch.sum(y == preds).item()
+
         running_loss = running_loss / n_data
         running_acc = running_acc / n_data
         if running_acc > best_acc or (running_acc == best_acc and
@@ -77,8 +73,9 @@ def train_model(
 # %%
 
 
-def train(scheme: str, epochs: int = 10):
+def train(scheme: str, epochs: int = 10, num_workers: int = 2, batch_size: int = 100):
     assert scheme is not None
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = scheme + '.train'
     checkpoint_path = scheme + '.tar'
 
@@ -101,14 +98,18 @@ def train(scheme: str, epochs: int = 10):
     print(data.classes)
 
     # %%
-    num_classes = len(data.classes)
     model = resnet18(pretrained = True)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+
+    model.fc = nn.Sequential(
+        nn.Dropout(0.3),
+        nn.Linear(model.fc.in_features, len(data.classes)),
+    )
+    # model.fc = nn.Linear(model.fc.in_features, len(data.classes))
     model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
 
-    optimizer = SGD(model.parameters(), lr = 0.01, momentum = 0.9)
+    optimizer = Adam(model.parameters(), lr = 0.01)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size = 30, gamma = 0.5)
 
     try:
