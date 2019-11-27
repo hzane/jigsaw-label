@@ -1,3 +1,6 @@
 *.train/
 *.csv
 *.tar
+*.pth
+*.script
+*.json

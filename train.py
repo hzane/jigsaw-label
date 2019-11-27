@@ -31,8 +31,8 @@ def train_model(
 
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
+        # optimizer.load_state_dict(checkpoint['optimizer'])
+        # scheduler.load_state_dict(checkpoint['scheduler'])
         best_loss = checkpoint['loss']
         best_acc = checkpoint['acc']
 
@@ -73,7 +73,7 @@ def train_model(
 # %%
 
 
-def train(scheme: str, epochs: int = 10, num_workers: int = 2, batch_size: int = 100):
+def train(scheme: str, epochs: int = 10, num_workers: int = 4, batch_size: int = 100):
     assert scheme is not None
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = scheme + '.train'

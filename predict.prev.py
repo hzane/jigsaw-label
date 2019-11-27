@@ -10,7 +10,7 @@ from fire import Fire
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from torchvision.models import resnet50
+from torchvision.models import resnet18
 from tqdm import tqdm
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -51,22 +51,22 @@ class ImageFolder(Dataset):
 
 
 def load_model(checkpoint):
-    if not checkpoint.endswith('.pth'):
-        checkpoint += '.pth'
+    if not checkpoint.endswith('.tar'):
+        checkpoint += '.tar'
 
     cp = torch.load(checkpoint)
-    classes = ['drawings', 'hentai', 'neutral', 'porn', 'sexy']
+    num_classes = len(cp['classes'])
 
-    model = resnet50(pretrained = False)
-    model.fc = nn.Sequential(
-        nn.Linear(2048, 512),
-        nn.ReLU(),
-        nn.Dropout(0.2),
-        nn.Linear(512, 10),
-        nn.LogSoftmax(dim = 1),
-    )
-    model.load_state_dict(cp)
+    model = resnet18(pretrained = True)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # model.fc = nn.Sequential(
+    #     nn.Dropout(0.3),
+    #     nn.Linear(model.fc.in_features, num_classes),
+    # )
     model = model.to(device)
+
+    model.load_state_dict(cp['model'])
+    classes = cp.get('classes', None) or [str(i) for i in range(num_classes)]
 
     return model, classes
 
@@ -126,15 +126,11 @@ def predict_dir(
         clean_images(root)
 
     if target is None:
-        r = Path(root)
-        sfx = '.1'
-        if r.suffix:
-            sfx = r.suffix
-            sfx = sfx[:-1] + chr(ord(sfx[-1:]) + 1)
-        target = r.with_suffix(sfx)
+        target = root
 
     # model, classes = load_model('checkpoint.tar')
     data = ImageFolder(root)
+    print(f'{root} has {len(data)} images')
     if len(data) == 0:
         return
 
@@ -146,10 +142,10 @@ def predict_dir(
     )
     with torch.no_grad():
         result = predict(model, dataloader)
-    result.to_csv(Path(root).name + ".csv", index = False)
+        result.to_csv(Path(root).name + ".csv", index = False)
 
     for x in classes:
-        Path(target, x).mkdir(0o755, True, True)
+        Path(target, x).mkdir(0o755, parents=True, exist_ok = True)
 
     for _, (fn, label) in result.iterrows():
         print(fn, classes[label])
@@ -165,6 +161,7 @@ def predict_dirs(
         num_workers: int = 2,
         batch_size: int = 100,
 ):
+    assert scheme is not None
     model, classes = load_model(scheme)
 
     predict_dir(model, classes, root, target, num_workers, batch_size, clean)
