@@ -11,7 +11,8 @@ from torch.optim import SGD, lr_scheduler, Adam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-from torchvision.models import resnet18
+from torchvision.models import resnet34
+
 from fire import Fire
 
 def train_model(
@@ -25,23 +26,23 @@ def train_model(
 ):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     best_model_weights = deepcopy(model.state_dict())
-    best_loss = math.inf
+    best_loss = float('inf')
     best_acc = 0.
     n_data = len(dataloader.dataset)
 
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model'])
-        # optimizer.load_state_dict(checkpoint['optimizer'])
-        # scheduler.load_state_dict(checkpoint['scheduler'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        scheduler.load_state_dict(checkpoint['scheduler'])
         best_loss = checkpoint['loss']
         best_acc = checkpoint['acc']
+        print(f'best-loss: {best_loss:.4f}, best-acc: {best_acc:.4f}')
 
     for epoch in range(epochs):
         t0 = time()
 
         model.train()
-        running_loss, running_acc = 0.0, 0.
-
+        running_loss, running_acc = 0, 0.
         for x, y in dataloader:
             x, y = x.to(device), y.to(device)
             optimizer.zero_grad()
@@ -55,6 +56,7 @@ def train_model(
 
         running_loss = running_loss / n_data
         running_acc = running_acc / n_data
+
         if running_acc > best_acc or (running_acc == best_acc and
                                       running_loss < best_loss):
             best_loss = running_loss
@@ -62,7 +64,8 @@ def train_model(
             best_model_weights = deepcopy(model.state_dict())
 
         print(
-            f'EPOCH: {epoch}, {time()-t0:.0f} secs, Loss: {running_loss}, Acc: {running_acc}'
+            f'EPOCH: {epoch}, {time()-t0:.0f} secs, Loss: {running_loss:.4f}, '
+            f'Acc: {running_acc:.4f}'
         )
         scheduler.step()
 
@@ -73,16 +76,15 @@ def train_model(
 # %%
 
 
-def train(scheme: str, epochs: int = 10, num_workers: int = 4, batch_size: int = 100):
+def train(scheme: str, epochs: int = 10, num_workers: int = 2, batch_size: int = 100, lr = 0.01):
     assert scheme is not None
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     root_dir = scheme + '.train'
-    checkpoint_path = scheme + '.tar'
+    checkpoint_path = scheme + '.resnet34.tar'
 
     transes = transforms.Compose([
         transforms.RandomHorizontalFlip(0.5),
-        transforms.Resize(256),
-        transforms.RandomCrop(224),
+        transforms.Resize((224,224)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
@@ -92,24 +94,17 @@ def train(scheme: str, epochs: int = 10, num_workers: int = 4, batch_size: int =
         data,
         shuffle = True,
         batch_size = batch_size,
+        pin_memory=True,
         num_workers = num_workers,
     )
 
-    print(data.classes)
+    print(', '.join(data.classes))
 
     # %%
-    model = resnet18(pretrained = True)
-
-    model.fc = nn.Sequential(
-        nn.Dropout(0.3),
-        nn.Linear(model.fc.in_features, len(data.classes)),
-    )
-    # model.fc = nn.Linear(model.fc.in_features, len(data.classes))
-    model = model.to(device)
-
+    model = resnet34(pretrained = False, num_classes=len(data.classes)).cuda()
     criterion = nn.CrossEntropyLoss()
 
-    optimizer = Adam(model.parameters(), lr = 0.01)
+    optimizer = Adam(model.parameters(), lr = lr)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size = 30, gamma = 0.5)
 
     try:
