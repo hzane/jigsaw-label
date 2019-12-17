@@ -45,8 +45,12 @@ class ImageFolder(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert('RGB')
-        img = self.transform(img)
+        try:
+            img = Image.open(self.image_paths[idx]).convert('RGB')
+            img = self.transform(img)
+        except Exception as e:
+            print(e)
+            img = torch.randn(3, 224, 224)
         return img, str(self.image_paths[idx])
 
 
@@ -106,8 +110,7 @@ def clean_images(root: str):
             img = Image.open(img_fn).convert('RGB')
             img = transes(img)
         except Exception as e:
-            _ = e
-            print(img_fn)
+            print(e)
             tgt = img_fn.with_suffix(img_fn.suffix + ".bad")
             img_fn.rename(tgt)
 
@@ -126,12 +129,7 @@ def predict_dir(
         clean_images(root)
 
     if target is None:
-        r = Path(root)
-        sfx = '.1'
-        if r.suffix:
-            sfx = r.suffix
-            sfx = sfx[:-1] + chr(ord(sfx[-1:]) + 1)
-        target = r.with_suffix(sfx)
+        target = root
 
     # model, classes = load_model('checkpoint.tar')
     data = ImageFolder(root)
@@ -146,15 +144,19 @@ def predict_dir(
     )
     with torch.no_grad():
         result = predict(model, dataloader)
+
     result.to_csv(Path(root).name + ".csv", index = False)
 
-    for x in classes:
-        Path(target, x).mkdir(0o755, True, True)
+    # for x in classes:
+    #     Path(target, x).mkdir(0o755, True, True)
+    Path(target, 'porn').mkdir(0o755, True, True)
+    Path(target, 'sexy').mkdir(0o755, True, True)
 
     for _, (fn, label) in result.iterrows():
         print(fn, classes[label])
         t = Path(target, classes[label], Path(fn).name)
-        Path(fn).rename(t)
+        if label >=3 :
+            Path(fn).rename(t)
 
 
 def predict_dirs(
