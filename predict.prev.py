@@ -101,7 +101,7 @@ def clean_images(root: str):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
 
-    for img_fn in iter_images(root):
+    for img_fn in tqdm(list(iter_images(root))):
         try:
             img = Image.open(img_fn).convert('RGB')
             img = transes(img)
