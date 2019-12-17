@@ -13,19 +13,25 @@ def all_images(root: str) -> Generator[Path, None, None]:
         yield p
 
 
-def clean(root: str = ".",
-          recycle: str = "../recycle",
-          ratio: int = 2,
-          min_width: int = 400,
-          min_height: int = 400) -> None:
+def clean(
+        root: str = ".",
+        recycle: str = "../recycle",
+        ratio: int = 2,
+        min_size: int = 40 * 2**10,
+        min_width: int = 400,
+        min_height: int = 400
+) -> None:
     dest = Path(recycle)
     dest.mkdir(0o755, parents=False, exist_ok=True)
     for imgfn in all_images(root):
+        if imgfn.stat().st_size == 0:
+            imgfn.unlink()
+
+        if imgfn.stat().st_size < min_size:
+            imgfn.rename(dest.joinpath(imgfn.name))
+
         try:
             img = Image.open(imgfn)
-        except IOError:
-            imgfn.rename(dest.joinpath(imgfn.name))
-        else:
             width, height = img.size
             if width > height * ratio or height > width * ratio:
                 print(imgfn, width, height)
@@ -35,6 +41,8 @@ def clean(root: str = ".",
                 imgfn.unlink()
 
             img.close()
+        except IOError:
+            imgfn.rename(dest.joinpath(imgfn.name))
 
 
 if __name__ == "__main__":
