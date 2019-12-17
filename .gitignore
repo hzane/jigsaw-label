@@ -4,3 +4,6 @@
 *.pth
 *.script
 *.json
+sptag/
+.ipynb_checkpoints/
+censor.val/
