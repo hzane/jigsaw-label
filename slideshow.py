@@ -10,7 +10,7 @@ class slideshow_app(tk.Tk):
     def __init__(self, images, x, y):
         tk.Tk.__init__(self)
         self.geometry('+{}+{}'.format(x, y))
-        self.picture_canvas = tk.Canvas(self, bd = 0, highlightthickness = 0)
+        self.picture_canvas = tk.Frame(self, bd = 0, highlightthickness = 0)
         self.bind("<ButtonPress-1>", self.show_slides)
         self.bind("<Key>", self.show_slides)
         self.bind("<Escape>", lambda e: self.destroy())
@@ -34,6 +34,7 @@ class slideshow_app(tk.Tk):
     def show_slides(self, event = None):
         imgfn, imgdesc = next(self.pictures)
         img = ImageTk.PhotoImage(file=imgfn)
+        self.picture_display.image = img
         self.picture_display.config(image = img, width=min(img.width(), 2000), height =min(img.height(), 1400),)
         self.tag.config(text = imgdesc)
         self.title(imgfn)
@@ -61,7 +62,7 @@ def images(meta: str):
         uri = row.uri
         row = row[~row.isna()]
         des = ''.join(
-            f'{name}:\t{val:.1f}\n' for name, val in row.drop(index = 'uri').iteritems()
+            f'{name}:\t{val}\n' for name, val in row.drop(index = 'uri').iteritems()
         )
         yield uri, des
 
