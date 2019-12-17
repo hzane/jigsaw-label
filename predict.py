@@ -45,8 +45,12 @@ class ImageFolder(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        img = Image.open(self.image_paths[idx]).convert('RGB')
-        img = self.transform(img)
+        try:
+            img = Image.open(self.image_paths[idx]).convert('RGB')
+            img = self.transform(img)
+        except Exception as e:
+            img = torch.randn(3, 224, 224)
+            print(e)
         return img, str(self.image_paths[idx])
 
 
@@ -60,7 +64,7 @@ def load_model(checkpoint):
     model = resnet18(pretrained = True)
     # model.fc = nn.Linear(model.fc.in_features, num_classes)
     model.fc = nn.Sequential(
-        nn.Dropout(0.3),
+        nn.Dropout(0.1),
         nn.Linear(model.fc.in_features, num_classes),
     )
     model = model.to(device)
@@ -77,7 +81,7 @@ def predict(model, dataloader) -> pd.DataFrame:
     files, preds = [], []
     for x, fn in tqdm(dataloader):
         x = x.to(device)
-        output = model(x)
+        output = model(x)  # (batch_size, 2)
         pred = torch.argmax(output, 1)
         files += [f for f in fn]
         preds += [p.item() for p in pred]
@@ -101,13 +105,12 @@ def clean_images(root: str):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
 
-    for img_fn in iter_images(root):
+    for img_fn in tqdm(list(iter_images(root))):
         try:
             img = Image.open(img_fn).convert('RGB')
             img = transes(img)
         except Exception as e:
-            _ = e
-            print(img_fn)
+            print(img_fn, e)
             tgt = img_fn.with_suffix(img_fn.suffix + ".bad")
             img_fn.rename(tgt)
 
